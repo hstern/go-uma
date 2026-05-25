@@ -1,0 +1,16 @@
+[
+  {
+    "resource_id": "112210f47de98100",
+    "resource_scopes": [
+      "view",
+      "http://photoz.example.com/dev/actions/print"
+    ]
+  },
+  {
+    "resource_id": "9282718373AB2c0",
+    "resource_scopes": [
+      "edit",
+      "delete"
+    ]
+  }
+]

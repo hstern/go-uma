@@ -1,0 +1,15 @@
+{
+  "active": true,
+  "exp": 1256953732,
+  "iat": 1256912345,
+  "permissions": [
+    {
+      "resource_id": "112210f47de98100",
+      "resource_scopes": [
+        "view",
+        "http://photoz.example.com/dev/actions/print"
+      ],
+      "exp": 1256953732
+    }
+  ]
+}

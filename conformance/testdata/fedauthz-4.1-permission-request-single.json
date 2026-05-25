@@ -1,0 +1,7 @@
+{
+  "resource_id": "112210f47de98100",
+  "resource_scopes": [
+    "view",
+    "http://photoz.example.com/dev/actions/print"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "error": "need_info",
+  "ticket": "ZXCVBNM,./KJHGFDSAQWERTYUIOP",
+  "required_claims": [
+    {
+      "claim_token_format": [
+        "http://openid.net/specs/openid-connect-core-1_0.html#IDToken"
+      ],
+      "claim_type": "urn:oid:1.3.6.1.5.5.7.9.1",
+      "friendly_name": "email",
+      "issuer": [
+        "https://op.example.com"
+      ]
+    }
+  ],
+  "redirect_user": "https://as.example.com/uma/claims_redirect?ticket=ZXCVBNM,./KJHGFDSAQWERTYUIOP"
+}
