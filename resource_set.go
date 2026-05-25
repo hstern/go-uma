@@ -63,6 +63,26 @@ type ResourceSet struct {
 	UserAccessPolicyURI string `json:"user_access_policy_uri,omitempty"`
 }
 
+// Validate checks the required-field invariants for a POST / PUT request
+// body on the resource registration endpoint (Federated Authz §2.1) and
+// returns a typed *ValidationError naming the first missing field. The
+// check applies only to bodies the RS is about to send; ResourceSet
+// values returned by the AS (POST 201 response, GET response) carry
+// different required-field invariants and are not the intended subject
+// of this method.
+//
+// Name and ResourceScopes are both required on POST / PUT — an entry
+// without either is not a meaningful resource registration.
+func (r *ResourceSet) Validate() error {
+	if r == nil || r.Name == "" {
+		return &ValidationError{Type: "ResourceSet", Field: "name", Message: "required"}
+	}
+	if len(r.ResourceScopes) == 0 {
+		return &ValidationError{Type: "ResourceSet", Field: "resource_scopes", Message: "required"}
+	}
+	return nil
+}
+
 // ResourceSetOp tags the five Federated Authz §2 resource-set CRUD
 // operations. Useful as a discriminator in server-side dispatchers and
 // in client-side request builders that route by op.
