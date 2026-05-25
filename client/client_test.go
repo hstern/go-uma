@@ -218,6 +218,10 @@ func (s stubClient) ListResourceSets(context.Context) ([]string, error) {
 	return nil, errors.New("stubClient: ListResourceSets not implemented")
 }
 
+func (s stubClient) FetchMetadata(context.Context) (*uma.Metadata, error) {
+	return nil, errors.New("stubClient: FetchMetadata not implemented")
+}
+
 func TestClient_InterfaceIsSubstitutable(t *testing.T) {
 	want := url.URL{Scheme: "https", Host: "stub.example.com"}
 	var c client.Client = stubClient{base: want}
