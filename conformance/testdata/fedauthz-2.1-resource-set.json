@@ -1,0 +1,9 @@
+{
+  "resource_scopes": [
+    "view",
+    "http://photoz.example.com/dev/actions/print"
+  ],
+  "icon_uri": "http://www.example.com/icons/sharesocial.png",
+  "name": "Tweedl Social Service",
+  "type": "http://www.example.com/rsrcs/socialstream/140-compatible"
+}

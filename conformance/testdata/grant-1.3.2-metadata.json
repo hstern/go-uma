@@ -1,0 +1,16 @@
+{
+  "issuer": "https://as.example.com",
+  "token_endpoint": "https://as.example.com/token",
+  "introspection_endpoint": "https://as.example.com/introspection",
+  "permission_endpoint": "https://as.example.com/permission",
+  "resource_registration_endpoint": "https://as.example.com/resource_set",
+  "grant_types_supported": [
+    "urn:ietf:params:oauth:grant-type:uma-ticket"
+  ],
+  "uma_profiles_supported": [
+    "https://docs.kantarainitiative.org/uma/wg/profile/example"
+  ],
+  "claim_token_formats_supported": [
+    "http://openid.net/specs/openid-connect-core-1_0.html#IDToken"
+  ]
+}
