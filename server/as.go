@@ -79,6 +79,36 @@ type AS interface {
 	// permission ticket (Federated Authz §4). Implementations bind
 	// the ticket to (resource_id, scopes) and choose its format;
 	// the library treats it as opaque.
+	//
+	// Ticket requirements (Federated Authz §4 + §6.2):
+	//
+	//   - Opaque to clients. The library never inspects ticket
+	//     bytes; consumers MUST NOT rely on any internal structure.
+	//   - High-entropy and unguessable. A ticket is a bearer
+	//     credential for one redemption; an attacker who guesses a
+	//     valid ticket can redeem it. The OAuth threat model (RFC
+	//     6819 §3.5) applies — at least 128 bits of entropy,
+	//     ideally produced by a cryptographic RNG.
+	//   - Single-use semantics. The spec recommends a ticket be
+	//     redeemable exactly once; the consumer's AS is responsible
+	//     for enforcing this. The library does NOT track ticket
+	//     state — consumer code MUST mark a ticket as consumed on
+	//     first /token redemption.
+	//   - Time-bound. A ticket SHOULD expire after a short window
+	//     (the spec is silent on the exact duration; minutes is a
+	//     common choice). An expired ticket returns
+	//     invalid_grant on /token redemption.
+	//   - Re-issuance on need_info. When the AS returns a
+	//     [*uma.NeedInfoError], the embedded Ticket field carries
+	//     an UPGRADED ticket bound to the partial claims already
+	//     accumulated. Consumers MUST mint a fresh ticket for this
+	//     case, not reuse the original — the upgraded ticket
+	//     carries claims state the original does not.
+	//
+	// The library's own permission-ticket lifecycle test (see
+	// lifecycle_test.go) demonstrates the issuance → redemption
+	// round-trip and documents the single-use invariant the
+	// consumer is responsible for.
 	Permission(ctx context.Context, r *uma.PermissionRequest) (*uma.PermissionResponse, error)
 
 	// Introspect inspects an RPT (Federated Authz §5, extending
