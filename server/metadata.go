@@ -36,6 +36,16 @@ import (
 // that does work first and then returns ErrNotImplemented will leak
 // that work on every BuildMetadata call.
 //
+// The ResourceSet probe uses [uma.OpUnknown] specifically as a
+// probe-only sentinel. An AS that overrides ResourceSet MUST NOT
+// return ErrNotImplemented for OpUnknown unless it really does not
+// support resource-set CRUD at all — return a [*uma.ValidationError]
+// (or any other non-ErrNotImplemented error) for the unknown-op case.
+// This is the convention NotImplementedAS satisfies trivially (it
+// returns ErrNotImplemented for every op, including OpUnknown, which
+// is correct because it implements no ops); a partial implementation
+// that adds CRUD must handle OpUnknown distinctly.
+//
 // BuildMetadata also fills in GrantTypesSupported with the
 // UMA-ticket grant URN when the AS implements Token; consumers who
 // want additional grants advertised compose
