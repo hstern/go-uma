@@ -1,15 +1,19 @@
-# Required PR checks. Fan-out: static / test / lint, each on its own job so a
-# single run surfaces every failure (a gofmt nit + a vet error + a lint warning
-# all at once), not just the earliest.
+# PR checks. Fan-out: static / test / lint / conformance, each on its own
+# job so a single run surfaces every failure (a gofmt nit + a vet error +
+# a lint warning + a conformance regression all at once), not just the
+# earliest.
 #
 # Runs on `ubuntu-latest` GitHub-hosted runners — Go is installed per job by
 # actions/setup-go. Versions are pinned in env so a single edit moves every
 # job in lockstep; bumping Go follows the same pattern as bumping the
 # `go 1.x` directive in go.mod.
 #
-# A `conformance` job lands later (Phase 6) once the internal conformance
-# scenario is in place. UMA has no Kantara-run interop event today, so the
-# library defines its own Go-native conformance criteria.
+# `static` / `test` / `lint` are the required status checks (per branch
+# protection on `main`). `conformance` runs alongside them but is NOT yet
+# in the required-checks list — it gets promoted once it has run green on
+# a few PRs. UMA has no Kantara-run interop event today, so the library
+# defines its own Go-native conformance criteria in the conformance/
+# subpackage.
 
 name: ci
 
@@ -71,3 +75,16 @@ jobs:
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --timeout=5m
+
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: false
+      - name: go test -tags conformance
+        run: sh scripts/check-conformance.sh
