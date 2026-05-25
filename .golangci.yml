@@ -24,6 +24,7 @@ linters:
   enable:
     # correctness
     - errcheck       # unchecked error returns and type assertions
+    - errorlint      # err.(*T) where errors.As is right, fmt.Errorf without %w
     - govet          # built-in: copylocks, printf, struct tags, etc.
     - ineffassign    # assignments to variables never read
     - staticcheck    # SA* (correctness), ST* (style), QF* (quickfix), S* (formerly gosimple), U1000 (unused)
