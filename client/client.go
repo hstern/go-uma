@@ -99,6 +99,31 @@ type Client interface {
 	// pin is that an Active=false response is NOT a transport error
 	// — see the implementation in introspection.go.
 	Introspect(ctx context.Context, r *uma.IntrospectionRequest) (*uma.IntrospectionResponse, error)
+
+	// CreateResourceSet registers a new protected resource with the
+	// AS via POST /resource_set (Federated Authz §2.2). Returns the
+	// AS-assigned ID + optional UserAccessPolicyURI. PAT-authenticated.
+	CreateResourceSet(ctx context.Context, rs *uma.ResourceSet) (*uma.ResourceSet, error)
+
+	// ReadResourceSet fetches the AS-side description of a registered
+	// resource via GET /resource_set/{id} (Federated Authz §2.3).
+	// PAT-authenticated.
+	ReadResourceSet(ctx context.Context, id string) (*uma.ResourceSet, error)
+
+	// UpdateResourceSet replaces the AS-side description via
+	// PUT /resource_set/{id} (Federated Authz §2.4). PAT-authenticated.
+	UpdateResourceSet(ctx context.Context, id string, rs *uma.ResourceSet) (*uma.ResourceSet, error)
+
+	// DeleteResourceSet removes a registered resource via
+	// DELETE /resource_set/{id} (Federated Authz §2.5). A successful
+	// response carries no body. PAT-authenticated.
+	DeleteResourceSet(ctx context.Context, id string) error
+
+	// ListResourceSets returns the IDs of every resource the RS has
+	// registered via GET /resource_set (Federated Authz §2.6). The
+	// response is a JSON array of opaque identifier strings — NOT
+	// full ResourceSet records. PAT-authenticated.
+	ListResourceSets(ctx context.Context) ([]string, error)
 }
 
 // defaultClient is the HTTP-backed implementation of [Client] that
