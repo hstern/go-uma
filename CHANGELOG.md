@@ -10,6 +10,16 @@ implements. UMA 2.0 has been stable as a Kantara Recommendation since
 
 ## [Unreleased]
 
+### Added
+
+- **`examples/as-rs-demo`**: runnable end-to-end demo program under
+  `examples/` that brings up an in-process AS and RS, registers a
+  resource set, and drives the full UMA flow (401 challenge →
+  permission ticket → `/token` redemption → introspection) as a
+  requesting-party client. The example lives in its own Go module
+  with a `replace` directive pointing at the library, so it stays
+  outside the library's dependency graph.
+
 ## [0.1.0] - 2026-05-25
 
 First tagged release. Implements **User-Managed Access 2.0** — the
@@ -107,7 +117,6 @@ Recommendations, finalized 2018-01. Tracked in source as
 - A JWT-typed RPT helper for ASs that mint JWT-formatted requesting-
   party tokens (the library treats the access_token field as opaque
   in v0.1).
-- An example application (CLI / docker-compose / interop demo).
 - `bodyclose` linter (would need a test-helper restructuring across
   the existing `post` / `redeemUMATicket` / `postToken` call sites).
 - Possible gRPC or MCP-Tool-Authorization-profile bindings as sibling

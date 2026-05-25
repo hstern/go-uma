@@ -12,3 +12,16 @@
 *.out
 coverage.txt
 coverage.html
+
+# Built example binaries. Each `examples/<name>/` subdirectory is its
+# own Go module; `go build` from inside one produces a binary named
+# after the module (e.g. examples/as-rs-demo/as-rs-demo). The example
+# is run with `go run .`, never installed — the binary is build
+# output, not a source artifact. Whitelist source files so a future
+# example sub-tree doesn't accidentally hide its `.go` or `.md`.
+/examples/*/*
+!/examples/*/*.go
+!/examples/*/*.md
+!/examples/*/go.mod
+!/examples/*/go.sum
+!/examples/*/testdata/

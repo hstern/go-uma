@@ -318,6 +318,16 @@ The `signed_metadata` field on the metadata document is round-tripped
 as opaque JWS bytes in `v0.x`; verification and signing land in a
 later release along with a JOSE dependency.
 
+## Examples
+
+Runnable examples live under [`examples/`](examples/), each in its own
+Go module outside the library's dependency graph. The
+[`as-rs-demo`](examples/as-rs-demo/) program brings up an in-process
+AS and RS and drives the full UMA flow — resource-set registration,
+401 challenge, permission ticket, `/token` redemption, introspection
+— end to end in a single binary. The example's README walks through
+each wire interaction.
+
 ## Contributing
 
 Contributions welcome. See [`AGENTS.md`](AGENTS.md) for contributor

@@ -88,3 +88,16 @@ jobs:
           check-latest: false
       - name: go test -tags conformance
         run: sh scripts/check-conformance.sh
+
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: false
+      - name: build examples
+        run: sh scripts/check-examples.sh
