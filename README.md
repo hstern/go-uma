@@ -9,16 +9,15 @@ and
 asynchronous access to their resources by a Requesting Party, mediated by
 an Authorization Server.
 
-`go-uma` will provide:
+`go-uma` provides:
 
-- A typed HTTP client for the Requesting Party (RqP) side of the
-  protocol — UMA-ticket grant redemption at the AS, and the
-  claims-gathering interaction.
-- A typed HTTP client for the Resource Server (RS) side — permission
-  registration, token introspection, and resource set management
-  against the AS's Federated Authorization endpoints.
+- A typed HTTP client for both the Requesting Party (RqP) side of the
+  protocol (UMA-ticket grant redemption, claims-gathering) and the
+  Resource Server (RS) side (permission registration, token
+  introspection, resource-set CRUD against the AS's Federated
+  Authorization endpoints).
 - `http.Handler` constructors for the AS role (over an `AS` interface)
-  and the RS role (over an `RS` interface), following an
+  and helpers for the RS role (over an `RS` interface), with an
   embed-and-override pattern for partial implementations.
 - The full type surface for every spec-defined message — the
   UMA-ticket grant on `/token`, `/permission`, `/resource_set`,
@@ -52,6 +51,244 @@ attention.
 The path to `v1.0.0` is open external integration and continued wire
 fidelity; see the **Stability** section for what changes between minor
 versions and what does not.
+
+## Quickstart
+
+### Authorization Server
+
+An AS implementation embeds `server.NotImplementedAS` and overrides
+only the endpoints it serves. The handler maps unimplemented methods
+to HTTP 501 and returns the right wire error for each typed error
+the implementation can produce.
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "net/http"
+
+    "github.com/hstern/go-uma"
+    "github.com/hstern/go-uma/server"
+)
+
+type myAS struct {
+    server.NotImplementedAS
+    // ticket store, RPT store, policy backend …
+}
+
+func (a *myAS) Token(ctx context.Context, r *uma.TokenRequest) (*uma.TokenResponse, error) {
+    // Look up r.Ticket → (resource_id, scopes).
+    // Apply policy. If insufficient claims, return *uma.NeedInfoError.
+    // If approved, mint an RPT (format is your choice) and return.
+    return &uma.TokenResponse{
+        AccessToken: "opaque-rpt",
+        TokenType:   "Bearer",
+        ExpiresIn:   3600,
+    }, nil
+}
+
+func main() {
+    as := &myAS{}
+    log.Fatal(http.ListenAndServe(":8080", server.NewASHandler(as)))
+}
+```
+
+Embed-and-override means a partial AS that only implements `Token`
+returns 501 for `/permission`, `/introspection`, and `/resource_set`
+automatically — and the metadata document `server.BuildMetadata`
+produces advertises only the implemented endpoints.
+
+### Resource Server
+
+The RS interface has a single `ProtectedRequest` method. The library
+contributes the policy-decision interface, the `WriteTicketResponse`
+helper that emits the 401 + `WWW-Authenticate: UMA` challenge, and
+the `ExtractBearerToken` helper for pulling the RPT off the
+incoming request. Routing stays in consumer hands.
+
+```go
+package main
+
+import (
+    "context"
+    "errors"
+    "log"
+    "net/http"
+
+    "github.com/hstern/go-uma"
+    "github.com/hstern/go-uma/client"
+    "github.com/hstern/go-uma/server"
+)
+
+type myRS struct {
+    asClient client.Client
+    asURL    string
+}
+
+func (rs *myRS) ProtectedRequest(
+    ctx context.Context, r *http.Request, rsid string, scopes []string,
+) (server.Decision, error) {
+    rpt, ok := server.ExtractBearerToken(r)
+    if !ok {
+        return server.DecisionUnknown, rs.ticket(ctx, rsid, scopes)
+    }
+    ir, err := rs.asClient.Introspect(ctx, &uma.IntrospectionRequest{Token: rpt})
+    if err != nil || !ir.Active {
+        return server.DecisionUnknown, rs.ticket(ctx, rsid, scopes)
+    }
+    return server.DecisionAllow, nil
+}
+
+func (rs *myRS) ticket(ctx context.Context, rsid string, scopes []string) error {
+    pr, _ := rs.asClient.Permission(ctx, &uma.PermissionRequest{
+        ResourceID: rsid, ResourceScopes: scopes,
+    })
+    return &server.TicketRequired{Ticket: pr.Ticket, ASURL: rs.asURL, Realm: "my-app"}
+}
+
+func handler(rs *myRS) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        d, err := rs.ProtectedRequest(r.Context(), r, "photo-1", []string{"view"})
+        var tr *server.TicketRequired
+        if errors.As(err, &tr) {
+            server.WriteTicketRequired(w, tr)
+            return
+        }
+        if err != nil || d != server.DecisionAllow {
+            w.WriteHeader(http.StatusForbidden)
+            return
+        }
+        log.Println("authorized")
+        // serve the protected resource …
+    })
+}
+```
+
+### Requesting-Party Client
+
+The client targets one AS. The full ticket → token → introspect flow
+is three method calls, each surfacing the typed error the library
+documents.
+
+```go
+package main
+
+import (
+    "context"
+    "errors"
+    "log"
+
+    "github.com/hstern/go-uma"
+    "github.com/hstern/go-uma/client"
+)
+
+func main() {
+    c, err := client.NewClient("https://as.example.com")
+    if err != nil {
+        log.Fatal(err)
+    }
+    // Step 1: redeem the ticket the RS handed out.
+    tr, err := c.Token(context.Background(), &uma.TokenRequest{
+        Ticket: "tkt-from-rs-401-challenge",
+    })
+    var ne *uma.NeedInfoError
+    if errors.As(err, &ne) {
+        // Gather the required claims and retry with claim_token populated:
+        //   c.Token(ctx, uma.NewPushedClaimsTokenRequest(ne.Ticket, idToken, uma.ClaimTokenFormatIDToken))
+        log.Fatalf("claims required: %+v", ne.RequiredClaims)
+    }
+    if err != nil {
+        log.Fatalf("token: %v", err) // *uma.OAuthError or transport error
+    }
+    // Step 2: use the RPT.
+    log.Printf("got RPT, expires in %d seconds", tr.ExpiresIn)
+}
+```
+
+A `need_info` 403 from the AS is **not** a transport error — it's a
+typed `*uma.NeedInfoError` carrying a fresh ticket and the claims the
+AS still needs. Pattern-match with `errors.As` and retry. Same for
+`active: false` from `Client.Introspect`: that's a successful 200
+response indicating the token is unknown / revoked / expired, not a
+transport failure; consumers branch on `IntrospectionResponse.Active`
+themselves.
+
+### Typed extensions on `Permission.Claims`
+
+The `Permission` entries in an introspection response may carry an
+optional `claims` object. The library exposes it as
+`json.RawMessage` so the bytes round-trip verbatim regardless of key
+order. Bridge to a typed Go value with the package-level
+`DecodeJSON` / `EncodeJSON` helpers:
+
+```go
+type AccessContext struct {
+    Department string `json:"department"`
+    Tier       string `json:"tier"`
+}
+
+// Reading: RawMessage → typed.
+for _, p := range ir.Permissions {
+    var ctx AccessContext
+    if err := uma.DecodeJSON(p.Claims, &ctx); err != nil {
+        return err
+    }
+    log.Printf("permission claims: %+v", ctx)
+}
+
+// Writing: typed → RawMessage.
+claims, _ := uma.EncodeJSON(AccessContext{Department: "eng", Tier: "gold"})
+p := uma.Permission{
+    ResourceID:     "photo-1",
+    ResourceScopes: []string{"view"},
+    Claims:         claims,
+}
+```
+
+`DecodeJSON` treats a nil or empty `RawMessage` as "no extension
+present" (no error, the typed value is left at its zero value), so
+call sites do not need a nil-guard.
+
+## Metadata document
+
+The library implements `/.well-known/uma2-configuration` (Grant
+§1.3.2) on both sides:
+
+- **Server**: `server.BuildMetadata(asURL, as, opts...)` introspects
+  the `AS` by probing each method with a sentinel zero-value request
+  and publishes only the endpoints the AS actually implements. Serve
+  the result with `server.NewMetadataHandler` mounted at
+  `uma.MetadataPath`.
+- **Client**: `Client.FetchMetadata(ctx)` fetches and validates the
+  document. **Mix-up protection is on by default** — a fetched
+  `Issuer` field that does not match the configured base URL produces
+  a typed `*client.MixUpError`, the spec's defense (Grant §1.3.2 +
+  RFC 8252 §6) against a confused-deputy attack swapping in a
+  hostile AS's document. Opt out with `client.WithRelaxedMetadataValidation()`
+  only when a TLS terminator or path rewriter legitimately produces a
+  configured URL distinct from the published one.
+- **Caching**: `Client.FetchMetadata` honors the response's
+  `Cache-Control: max-age` directive; absent that, it falls back to
+  a configurable default (one hour). Override with
+  `client.WithMetadataTTL(d)`. The cache lives on the `Client`, not
+  globally — different clients hold different documents.
+- **Signed metadata** (`signed_metadata`, a JWS per RFC 7515) is
+  round-tripped as opaque bytes in `v0.x` so existing deployments
+  survive upgrades without churn. Verification and signing land in a
+  later release along with a JOSE dependency.
+
+## PAT acquisition is out of scope
+
+UMA's protection-API endpoints (`/permission`, `/introspection`,
+`/resource_set`) are PAT-authenticated — the Resource Server sends an
+OAuth 2.0 access token in the `Authorization: Bearer` header on every
+call. **How the RS obtains the PAT is out of scope for this library.**
+The conventional path is the OAuth 2.0 client-credentials grant
+against the same AS, which a consumer wires through their own OAuth
+library and surfaces here via `client.WithPAT(token)` or by composing
+`client.NewPATDoer` into the `HTTPDoer` chain.
 
 ## Compatibility
 
