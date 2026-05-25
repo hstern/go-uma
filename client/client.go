@@ -43,6 +43,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/hstern/go-uma"
@@ -124,6 +125,20 @@ type Client interface {
 	// response is a JSON array of opaque identifier strings — NOT
 	// full ResourceSet records. PAT-authenticated.
 	ListResourceSets(ctx context.Context) ([]string, error)
+
+	// FetchMetadata fetches and validates the AS's UMA 2.0
+	// configuration document (Grant §1.3.2). Result is cached on the
+	// client per the AS's Cache-Control: max-age header (or the
+	// configured fallback TTL when the response carries no max-age).
+	//
+	// By default the fetched document's Issuer field MUST equal the
+	// client's configured base URL — a mismatch returns a typed
+	// [*uma.MixUpError] without populating the cache, the spec's
+	// defense against a confused-deputy or attacker-substituted
+	// document. Opt out via [WithRelaxedMetadataValidation] only when
+	// the configured URL is known to differ from the published one
+	// (e.g. a TLS terminator in front of the AS rewrites the host).
+	FetchMetadata(ctx context.Context) (*uma.Metadata, error)
 }
 
 // defaultClient is the HTTP-backed implementation of [Client] that
@@ -142,12 +157,31 @@ type defaultClient struct {
 	pat string
 
 	// metaDefaultTTL is the fallback metadata-document cache lifetime
-	// when the AS's response carries no Cache-Control: max-age.
-	// FetchMetadata (landing in a later phase alongside the metadata
-	// document support) consults this field; it is plumbed here at
-	// construction time so the option set is settled before any
-	// network call.
+	// when the AS's response carries no Cache-Control: max-age. A
+	// non-positive value disables caching (every FetchMetadata call
+	// hits the AS).
 	metaDefaultTTL time.Duration
+
+	// metaRelaxedMixUp opts out of the default hard-fail behavior
+	// when the fetched document's Issuer does not match the
+	// configured base URL. See [WithRelaxedMetadataValidation].
+	metaRelaxedMixUp bool
+
+	// metaCache + metaMu hold the most-recent successful
+	// FetchMetadata result and its expiry. A nil entry means no
+	// fetch has succeeded yet; expired entries are refreshed on the
+	// next FetchMetadata call.
+	metaMu    sync.Mutex
+	metaCache *cachedMetadata
+}
+
+// cachedMetadata is the per-client metadata-document cache entry —
+// the parsed document plus its expiry. FetchMetadata returns the
+// same pointer on a cache hit, so callers MUST NOT mutate the
+// returned [*uma.Metadata].
+type cachedMetadata struct {
+	doc     *uma.Metadata
+	expires time.Time
 }
 
 // BaseURL implements [Client.BaseURL].
@@ -264,13 +298,26 @@ func WithPAT(token string) Option {
 // — short enough that a freshly-deployed endpoint sees client uptake
 // within a workday, long enough that the metadata fetch is not on
 // every request's hot path. A non-positive duration disables caching
-// (every FetchMetadata call hits the AS).
-//
-// The metadata fetcher itself lands with the AS-side metadata document
-// support; this option is wired here at construction time so the
-// option set is complete from the start.
+// (every [Client.FetchMetadata] call hits the AS).
 func WithMetadataTTL(d time.Duration) Option {
 	return func(c *defaultClient) {
 		c.metaDefaultTTL = d
+	}
+}
+
+// WithRelaxedMetadataValidation opts out of [Client.FetchMetadata]'s
+// default hard-fail behavior when the fetched document's Issuer field
+// does not match the configured base URL. This option exists for the
+// narrow case where a TLS terminator, load balancer, or path-prefix
+// rewriter in front of the AS produces a Configured URL that
+// legitimately differs from the AS's published Issuer.
+//
+// In every other case, leave the default in place. The mix-up check
+// is the Grant §1.3.2-mandated defense against a confused-deputy or
+// attacker-substituted metadata document; opting out where it is
+// not needed widens the attack surface.
+func WithRelaxedMetadataValidation() Option {
+	return func(c *defaultClient) {
+		c.metaRelaxedMixUp = true
 	}
 }
