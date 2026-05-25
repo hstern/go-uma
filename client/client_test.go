@@ -4,11 +4,14 @@
 package client_test
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/hstern/go-uma"
 	"github.com/hstern/go-uma/client"
 )
 
@@ -182,6 +185,10 @@ type stubClient struct {
 }
 
 func (s stubClient) BaseURL() url.URL { return s.base }
+
+func (s stubClient) Token(context.Context, *uma.TokenRequest) (*uma.TokenResponse, error) {
+	return nil, errors.New("stubClient: Token not implemented")
+}
 
 func TestClient_InterfaceIsSubstitutable(t *testing.T) {
 	want := url.URL{Scheme: "https", Host: "stub.example.com"}

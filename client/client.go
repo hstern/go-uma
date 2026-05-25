@@ -38,11 +38,14 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/hstern/go-uma"
 )
 
 // HTTPDoer is the interface the client requires of its underlying
@@ -73,6 +76,13 @@ type Client interface {
 	// against. Returned by value so callers cannot mutate the client's
 	// internal state by writing back to the URL.
 	BaseURL() url.URL
+
+	// Token redeems a permission ticket for a requesting-party token
+	// at the AS's /token endpoint under the UMA-ticket grant
+	// (Grant §3.3). See the implementation in token.go for the
+	// load-bearing behavior — the documented `need_info` 403 path
+	// returns a typed [*uma.NeedInfoError], not a transport error.
+	Token(ctx context.Context, r *uma.TokenRequest) (*uma.TokenResponse, error)
 }
 
 // defaultClient is the HTTP-backed implementation of [Client] that
@@ -101,6 +111,23 @@ type defaultClient struct {
 
 // BaseURL implements [Client.BaseURL].
 func (c *defaultClient) BaseURL() url.URL { return *c.baseURL }
+
+// endpointURL builds an absolute URL for the named endpoint path
+// (e.g. [uma.TokenEndpoint]) by resolving it against the client's
+// base URL. The result is a fresh *url.URL the per-endpoint methods
+// may further modify (query parameters, path additions for resource-
+// set CRUD).
+//
+// A leading "/" on path is treated as authoritative — it replaces the
+// base URL's path rather than appending. Consumers passing a base URL
+// with a non-root path should be aware: an asBaseURL of
+// "https://as.example.com/uma" plus path "/token" resolves to
+// "https://as.example.com/token", not ".../uma/token". This matches
+// net/url.ResolveReference semantics and is what most ASs publish.
+func (c *defaultClient) endpointURL(path string) *url.URL {
+	rel, _ := url.Parse(path)
+	return c.baseURL.ResolveReference(rel)
+}
 
 // Option customizes a [defaultClient] at construction. The parameter
 // type is unexported so consumers cannot construct their own Option
