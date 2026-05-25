@@ -198,6 +198,26 @@ func (s stubClient) Introspect(context.Context, *uma.IntrospectionRequest) (*uma
 	return nil, errors.New("stubClient: Introspect not implemented")
 }
 
+func (s stubClient) CreateResourceSet(context.Context, *uma.ResourceSet) (*uma.ResourceSet, error) {
+	return nil, errors.New("stubClient: CreateResourceSet not implemented")
+}
+
+func (s stubClient) ReadResourceSet(context.Context, string) (*uma.ResourceSet, error) {
+	return nil, errors.New("stubClient: ReadResourceSet not implemented")
+}
+
+func (s stubClient) UpdateResourceSet(context.Context, string, *uma.ResourceSet) (*uma.ResourceSet, error) {
+	return nil, errors.New("stubClient: UpdateResourceSet not implemented")
+}
+
+func (s stubClient) DeleteResourceSet(context.Context, string) error {
+	return errors.New("stubClient: DeleteResourceSet not implemented")
+}
+
+func (s stubClient) ListResourceSets(context.Context) ([]string, error) {
+	return nil, errors.New("stubClient: ListResourceSets not implemented")
+}
+
 func TestClient_InterfaceIsSubstitutable(t *testing.T) {
 	want := url.URL{Scheme: "https", Host: "stub.example.com"}
 	var c client.Client = stubClient{base: want}
