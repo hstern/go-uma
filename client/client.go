@@ -83,6 +83,14 @@ type Client interface {
 	// load-bearing behavior — the documented `need_info` 403 path
 	// returns a typed [*uma.NeedInfoError], not a transport error.
 	Token(ctx context.Context, r *uma.TokenRequest) (*uma.TokenResponse, error)
+
+	// Permission registers a permission with the AS at /permission
+	// (Federated Authz §4.1). The Resource Server calls this when
+	// a requesting-party client lacks sufficient authorization, to
+	// obtain a permission ticket bound to the (resource_id, scopes)
+	// the RS then surfaces in its 401 WWW-Authenticate challenge.
+	// PAT-authenticated.
+	Permission(ctx context.Context, r *uma.PermissionRequest) (*uma.PermissionResponse, error)
 }
 
 // defaultClient is the HTTP-backed implementation of [Client] that
@@ -127,6 +135,22 @@ func (c *defaultClient) BaseURL() url.URL { return *c.baseURL }
 func (c *defaultClient) endpointURL(path string) *url.URL {
 	rel, _ := url.Parse(path)
 	return c.baseURL.ResolveReference(rel)
+}
+
+// authorize sets the Authorization: Bearer header on req when the
+// client was constructed with a non-empty PAT. Per-endpoint code calls
+// this from each protection-API method; the requesting-party /token
+// endpoint is the explicit exception and does not.
+//
+// Authorization that the consumer wires through an [HTTPDoer] wrapper
+// (e.g. [NewPATDoer], or an external OAuth library) bypasses this
+// path entirely — the doer sees the request after authorize has
+// already run, and is free to add or replace the header.
+func (c *defaultClient) authorize(req *http.Request) {
+	if c.pat == "" {
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+c.pat)
 }
 
 // Option customizes a [defaultClient] at construction. The parameter

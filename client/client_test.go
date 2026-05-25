@@ -190,6 +190,10 @@ func (s stubClient) Token(context.Context, *uma.TokenRequest) (*uma.TokenRespons
 	return nil, errors.New("stubClient: Token not implemented")
 }
 
+func (s stubClient) Permission(context.Context, *uma.PermissionRequest) (*uma.PermissionResponse, error) {
+	return nil, errors.New("stubClient: Permission not implemented")
+}
+
 func TestClient_InterfaceIsSubstitutable(t *testing.T) {
 	want := url.URL{Scheme: "https", Host: "stub.example.com"}
 	var c client.Client = stubClient{base: want}
