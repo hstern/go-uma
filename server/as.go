@@ -179,13 +179,18 @@ func (NotImplementedAS) ResourceSet(context.Context, *ResourceSetRequest) (*Reso
 	return nil, uma.ErrNotImplemented
 }
 
-// HandlerOption customizes an [AS] handler at construction. The
-// option set is intentionally small at this layer — additional hooks
-// (structured logging, metrics) land in a later commit. Options
-// applied are independent and order-insensitive.
+// HandlerOption customizes an [AS] handler at construction. Options
+// applied are independent and order-insensitive. See [WithLogger]
+// and [WithMetrics] for the available hooks; consumer-side PAT
+// authentication and TLS termination live in the consumer's own
+// HTTP middleware layer, outside this option set, because they are
+// deployment concerns this library deliberately does not constrain.
 type HandlerOption func(*handlerConfig)
 
-type handlerConfig struct{}
+type handlerConfig struct {
+	log    LogHook
+	metric MetricHook
+}
 
 // NewASHandler returns an [http.Handler] that routes incoming HTTP
 // requests against the AS's spec-defined paths to the corresponding
@@ -205,13 +210,22 @@ type handlerConfig struct{}
 // Other paths and other methods return 404 / 405. Mount the handler at
 // the AS's base path with [http.ServeMux] or any router that proxies
 // to it.
-func NewASHandler(as AS, _ ...HandlerOption) http.Handler {
+func NewASHandler(as AS, opts ...HandlerOption) http.Handler {
+	cfg := &handlerConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	mux := http.NewServeMux()
-	mux.Handle(uma.TokenEndpoint, methodOnly(http.MethodPost, handleToken(as)))
-	mux.Handle(uma.PermissionEndpoint, methodOnly(http.MethodPost, handlePermission(as)))
-	mux.Handle(uma.IntrospectionEndpoint, methodOnly(http.MethodPost, handleIntrospect(as)))
-	mux.Handle(uma.ResourceSetEndpoint, handleResourceSetRoot(as))
-	mux.Handle(uma.ResourceSetEndpoint+"/", handleResourceSetID(as))
+	mux.Handle(uma.TokenEndpoint, instrument(cfg, uma.TokenEndpoint,
+		methodOnly(http.MethodPost, handleToken(as))))
+	mux.Handle(uma.PermissionEndpoint, instrument(cfg, uma.PermissionEndpoint,
+		methodOnly(http.MethodPost, handlePermission(as))))
+	mux.Handle(uma.IntrospectionEndpoint, instrument(cfg, uma.IntrospectionEndpoint,
+		methodOnly(http.MethodPost, handleIntrospect(as))))
+	mux.Handle(uma.ResourceSetEndpoint, instrument(cfg, uma.ResourceSetEndpoint,
+		handleResourceSetRoot(as)))
+	mux.Handle(uma.ResourceSetEndpoint+"/", instrument(cfg, uma.ResourceSetEndpoint,
+		handleResourceSetID(as)))
 	return mux
 }
 
