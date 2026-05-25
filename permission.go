@@ -76,6 +76,20 @@ func (p *PermissionRequests) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Validate checks the required-field invariants on r and returns a typed
+// *ValidationError naming the first missing field. ResourceID and
+// ResourceScopes are both required by Federated Authz §4.1; an entry
+// without either is not a meaningful permission registration.
+func (r *PermissionRequest) Validate() error {
+	if r == nil || r.ResourceID == "" {
+		return &ValidationError{Type: "PermissionRequest", Field: "resource_id", Message: "required"}
+	}
+	if len(r.ResourceScopes) == 0 {
+		return &ValidationError{Type: "PermissionRequest", Field: "resource_scopes", Message: "required"}
+	}
+	return nil
+}
+
 // PermissionResponse is the JSON 201 Created body returned by the AS
 // in response to a permission registration (Federated Authz §4.2). It
 // carries exactly one field: the permission ticket the RS includes in

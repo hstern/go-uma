@@ -48,6 +48,16 @@ func ParseIntrospectionRequest(v url.Values) *IntrospectionRequest {
 	}
 }
 
+// Validate checks the required-field invariants on r and returns a typed
+// *ValidationError when one is missing. Token is the only required field
+// per RFC 7662 §2.1; TokenTypeHint is optional.
+func (r *IntrospectionRequest) Validate() error {
+	if r == nil || r.Token == "" {
+		return &ValidationError{Type: "IntrospectionRequest", Field: "token", Message: "required"}
+	}
+	return nil
+}
+
 // IntrospectionResponse is the JSON body returned by the AS in response to
 // an introspection request (Federated Authz §5.1.1). It carries the
 // standard RFC 7662 §2.2 fields plus the UMA-specific Permissions array.

@@ -110,6 +110,22 @@ func ParseTokenRequest(v url.Values) *TokenRequest {
 	}
 }
 
+// Validate checks the required-field invariants on r and returns a typed
+// *ValidationError when one is missing. The library is lenient on
+// unmarshal — Validate is the opt-in strict-marshal check consumers call
+// before sending a TokenRequest to the AS, surfacing missing fields at
+// the call site rather than as a 400 from the AS.
+//
+// For a TokenRequest the only required field is Ticket; the others are
+// optional in combination and the AS rejects invalid combinations on its
+// side with a typed OAuth error response.
+func (r *TokenRequest) Validate() error {
+	if r == nil || r.Ticket == "" {
+		return &ValidationError{Type: "TokenRequest", Field: "ticket", Message: "required"}
+	}
+	return nil
+}
+
 // TokenResponse is the JSON 200 OK body returned by the AS on successful
 // redemption of a [TokenRequest] (Grant §3.3.5). AccessToken is the
 // requesting-party token (RPT) — opaque to consumers of this library; the
