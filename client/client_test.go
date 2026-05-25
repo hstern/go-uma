@@ -194,6 +194,10 @@ func (s stubClient) Permission(context.Context, *uma.PermissionRequest) (*uma.Pe
 	return nil, errors.New("stubClient: Permission not implemented")
 }
 
+func (s stubClient) Introspect(context.Context, *uma.IntrospectionRequest) (*uma.IntrospectionResponse, error) {
+	return nil, errors.New("stubClient: Introspect not implemented")
+}
+
 func TestClient_InterfaceIsSubstitutable(t *testing.T) {
 	want := url.URL{Scheme: "https", Host: "stub.example.com"}
 	var c client.Client = stubClient{base: want}

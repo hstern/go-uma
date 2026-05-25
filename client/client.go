@@ -91,6 +91,14 @@ type Client interface {
 	// the RS then surfaces in its 401 WWW-Authenticate challenge.
 	// PAT-authenticated.
 	Permission(ctx context.Context, r *uma.PermissionRequest) (*uma.PermissionResponse, error)
+
+	// Introspect inspects a requesting-party token at the AS's
+	// /introspection endpoint (Federated Authz §5.1, extending
+	// RFC 7662). PAT-authenticated. The library returns the parsed
+	// IntrospectionResponse with no transformation; the implementer
+	// pin is that an Active=false response is NOT a transport error
+	// — see the implementation in introspection.go.
+	Introspect(ctx context.Context, r *uma.IntrospectionRequest) (*uma.IntrospectionResponse, error)
 }
 
 // defaultClient is the HTTP-backed implementation of [Client] that
